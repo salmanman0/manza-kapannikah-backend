@@ -46,6 +46,10 @@ const kebutuhanSchema = new mongoose.Schema(
       type: Boolean,
       default: true,
     },
+    selesai: {
+      type: Boolean,
+      default: false,
+    },
   },
   {
     timestamps: true,
