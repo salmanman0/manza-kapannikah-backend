@@ -1,0 +1,310 @@
+# =============================================================================
+# KapanNikah API — Profile
+# =============================================================================
+# Base URL  : http://localhost:3000/api/v1
+# Auth Type : Bearer Token (required untuk semua endpoint di file ini)
+#
+# Token bersifat PERMANEN — tidak ada refresh token.
+# Token hanya kadaluarsa saat:
+#   • User melakukan logout (POST /auth/logout)
+#   • User melakukan logout semua perangkat (POST /auth/logout-all)
+#   • User mengganti password (PATCH /profile/me/password)
+#
+# Cara pakai di VS Code:
+#   Install ekstensi "REST Client" (humao.rest-client)
+#   Klik "Send Request" di atas setiap ### baris
+#
+# Related: docs/auth.http
+# =============================================================================
+
+@baseUrl = http://localhost:3000/api/v1
+@ct      = application/json
+
+# Paste accessToken dari response login:
+@accessToken = PASTE_ACCESS_TOKEN_DI_SINI
+
+
+# =============================================================================
+# 1. GET PROFILE
+# -----------------------------------------------------------------------------
+# Kegunaan : Mengambil data profil pengguna yang sedang login.
+#            Dipakai saat membuka halaman Profil untuk menampilkan:
+#            nama, email, nomor HP, inisial avatar, status verifikasi email,
+#            role, dan preferensi (notifikasi & bahasa).
+# Header   : Authorization: Bearer <accessToken>
+# =============================================================================
+
+### [GET] Get My Profile
+GET {{baseUrl}}/profile/me
+Authorization: Bearer {{accessToken}}
+
+# ✅ Response 200:
+# {
+#   "success": true,
+#   "message": "Berhasil mendapatkan profil",
+#   "data": {
+#     "id": "6640a1b2c3d4e5f6a7b8c9d0",
+#     "name": "Budi Santoso",
+#     "email": "budi@example.com",
+#     "phone": "08123456789",
+#     "initials": "BS",
+#     "isEmailVerified": true,
+#     "role": "user",
+#     "preferences": {
+#       "notificationsEnabled": true,
+#       "language": "id"
+#     },
+#     "createdAt": "2026-04-13T07:00:00.000Z",
+#     "lastLoginAt": "2026-04-13T14:22:56.000Z"
+#   }
+# }
+
+###
+
+### [GET] Get Profile - Tanpa token
+GET {{baseUrl}}/profile/me
+
+# ❌ Response 401:
+# {
+#   "success": false,
+#   "message": "Autentikasi diperlukan"
+# }
+
+
+# =============================================================================
+# 2. UPDATE PROFILE
+# -----------------------------------------------------------------------------
+# Kegunaan : Mengubah informasi profil (nama, email, nomor HP).
+#            Dipakai saat pengguna menekan "Simpan Perubahan" di
+#            bottom sheet "Edit Informasi Profil".
+#            Jika email diubah, status verifikasi email akan direset ke false.
+#            Bisa kirim 1, 2, atau 3 field sekaligus — tidak harus semua.
+# Header   : Authorization: Bearer <accessToken>
+# =============================================================================
+
+### [PATCH] Update Profile - Semua field
+PATCH {{baseUrl}}/profile/me
+Content-Type: {{ct}}
+Authorization: Bearer {{accessToken}}
+
+{
+  "name": "Budi Santoso Baru",
+  "email": "budibaru@example.com",
+  "phone": "08198765432"
+}
+
+# ✅ Response 200:
+# {
+#   "success": true,
+#   "message": "Profil berhasil diperbarui",
+#   "data": {
+#     "id": "6640a1b2c3d4e5f6a7b8c9d0",
+#     "name": "Budi Santoso Baru",
+#     "email": "budibaru@example.com",
+#     "phone": "08198765432",
+#     "initials": "BS",
+#     "isEmailVerified": false,
+#     "role": "user",
+#     "preferences": {
+#       "notificationsEnabled": true,
+#       "language": "id"
+#     },
+#     "createdAt": "2026-04-13T07:00:00.000Z",
+#     "lastLoginAt": "2026-04-13T14:22:56.000Z"
+#   }
+# }
+
+###
+
+### [PATCH] Update Profile - Hanya nama saja
+PATCH {{baseUrl}}/profile/me
+Content-Type: {{ct}}
+Authorization: Bearer {{accessToken}}
+
+{
+  "name": "Budi Santoso"
+}
+
+# ✅ Response 200: (sama seperti di atas, hanya nama yang berubah)
+
+###
+
+### [PATCH] Update Profile - Email sudah dipakai orang lain
+PATCH {{baseUrl}}/profile/me
+Content-Type: {{ct}}
+Authorization: Bearer {{accessToken}}
+
+{
+  "email": "milikOrangLain@example.com"
+}
+
+# ❌ Response 409:
+# {
+#   "success": false,
+#   "message": "Email sudah digunakan akun lain"
+# }
+
+###
+
+### [PATCH] Update Profile - Format nomor HP salah
+PATCH {{baseUrl}}/profile/me
+Content-Type: {{ct}}
+Authorization: Bearer {{accessToken}}
+
+{
+  "phone": "1234"
+}
+
+# ❌ Response 422:
+# {
+#   "success": false,
+#   "message": "Validasi gagal",
+#   "errors": [
+#     { "field": "phone", "message": "Format nomor HP tidak valid (contoh: 08xx, +628xx)" }
+#   ]
+# }
+
+
+# =============================================================================
+# 3. GANTI PASSWORD
+# -----------------------------------------------------------------------------
+# Kegunaan : Mengubah password pengguna.
+#            Dipakai saat pengguna menekan "Simpan" di bottom sheet
+#            "Ubah Password".
+#            Setelah berhasil, SEMUA sesi aktif di semua device akan
+#            dilogout otomatis (termasuk device saat ini).
+#            Pengguna harus login ulang dengan password baru.
+# Header   : Authorization: Bearer <accessToken>
+# =============================================================================
+
+### [PATCH] Change Password - Sukses
+PATCH {{baseUrl}}/profile/me/password
+Content-Type: {{ct}}
+Authorization: Bearer {{accessToken}}
+
+{
+  "currentPassword": "Rahasia@123",
+  "newPassword": "PasswordBaru@456",
+  "confirmNewPassword": "PasswordBaru@456"
+}
+
+# ✅ Response 200:
+# {
+#   "success": true,
+#   "message": "Password berhasil diubah. Silakan login kembali."
+# }
+
+###
+
+### [PATCH] Change Password - Password saat ini salah
+PATCH {{baseUrl}}/profile/me/password
+Content-Type: {{ct}}
+Authorization: Bearer {{accessToken}}
+
+{
+  "currentPassword": "PasswordSalah",
+  "newPassword": "PasswordBaru@456",
+  "confirmNewPassword": "PasswordBaru@456"
+}
+
+# ❌ Response 400:
+# {
+#   "success": false,
+#   "message": "Password saat ini salah"
+# }
+
+###
+
+### [PATCH] Change Password - Konfirmasi tidak cocok
+PATCH {{baseUrl}}/profile/me/password
+Content-Type: {{ct}}
+Authorization: Bearer {{accessToken}}
+
+{
+  "currentPassword": "Rahasia@123",
+  "newPassword": "PasswordBaru@456",
+  "confirmNewPassword": "PasswordBeda@999"
+}
+
+# ❌ Response 422:
+# {
+#   "success": false,
+#   "message": "Validasi gagal",
+#   "errors": [
+#     { "field": "confirmNewPassword", "message": "Konfirmasi password tidak cocok" }
+#   ]
+# }
+
+
+# =============================================================================
+# 4. UPDATE PREFERENSI
+# -----------------------------------------------------------------------------
+# Kegunaan : Mengubah preferensi pengguna.
+#            Dipakai saat pengguna toggle "Notifikasi" di halaman Profil,
+#            atau nantinya mengganti bahasa aplikasi.
+#            Bisa kirim 1 atau 2 field — tidak harus keduanya.
+# Header   : Authorization: Bearer <accessToken>
+# =============================================================================
+
+### [PATCH] Update Preferences - Matikan notifikasi
+PATCH {{baseUrl}}/profile/me/preferences
+Content-Type: {{ct}}
+Authorization: Bearer {{accessToken}}
+
+{
+  "notificationsEnabled": false
+}
+
+# ✅ Response 200:
+# {
+#   "success": true,
+#   "message": "Preferensi berhasil diperbarui",
+#   "data": {
+#     "id": "6640a1b2c3d4e5f6a7b8c9d0",
+#     "name": "Budi Santoso",
+#     "email": "budi@example.com",
+#     "phone": "08123456789",
+#     "initials": "BS",
+#     "isEmailVerified": true,
+#     "role": "user",
+#     "preferences": {
+#       "notificationsEnabled": false,
+#       "language": "id"
+#     },
+#     "createdAt": "2026-04-13T07:00:00.000Z",
+#     "lastLoginAt": "2026-04-13T14:22:56.000Z"
+#   }
+# }
+
+###
+
+### [PATCH] Update Preferences - Ganti bahasa ke Inggris
+PATCH {{baseUrl}}/profile/me/preferences
+Content-Type: {{ct}}
+Authorization: Bearer {{accessToken}}
+
+{
+  "language": "en"
+}
+
+# ✅ Response 200: (sama, language berubah ke "en")
+
+###
+
+### [PATCH] Update Preferences - Nilai bahasa tidak valid
+PATCH {{baseUrl}}/profile/me/preferences
+Content-Type: {{ct}}
+Authorization: Bearer {{accessToken}}
+
+{
+  "language": "fr"
+}
+
+# ❌ Response 422:
+# {
+#   "success": false,
+#   "message": "Validasi gagal",
+#   "errors": [
+#     { "field": "language", "message": "Bahasa hanya boleh id atau en" }
+#   ]
+# }

@@ -1,0 +1,579 @@
+# =============================================================================
+# KapanNikah API — Main (Beranda · Kebutuhan · Kalender · Profil)
+# =============================================================================
+# Base URL  : http://localhost:3000/api/v1
+# Auth Type : Bearer Token
+#
+# Semua endpoint di bawah ini berada di bawah /events/:eventId dan
+# memerlukan login + status kolaborator 'accepted' pada acara tersebut.
+#
+# Alur:
+#   Login → folder_home (pilih event card) → main_view
+#   main_view berisi 4 tab:
+#     [0] Beranda   → Dashboard + Tabungan
+#     [1] Kebutuhan → Kebutuhan Acara
+#     [2] Kalender  → Kebutuhan + Pengingat per tanggal
+#     [3] Profil    → Lihat profile.http
+#
+# Otorisasi:
+#   Viewer  → hanya baca (GET)
+#   Editor  → baca + tulis kebutuhan (POST/PATCH/DELETE)
+#   Owner   → editor + hapus tabungan & pengingat milik siapa pun
+#   Member  → semua accepted collaborator (viewer & editor)
+#             dapat POST tabungan dan POST reminder
+#
+# Related: docs/auth.http, docs/profile.http, docs/folder.http
+# =============================================================================
+
+@baseUrl = http://localhost:3000/api/v1
+@ct      = application/json
+
+# Isi setelah login:
+@token      = PASTE_ACCESS_TOKEN_DI_SINI
+
+# Isi setelah membuka event card:
+@eventId    = PASTE_EVENT_ID_DI_SINI
+
+# Isi dari response list/create:
+@tabunganId   = PASTE_TABUNGAN_ID_DI_SINI
+@kebutuhanId  = PASTE_KEBUTUHAN_ID_DI_SINI
+@reminderId   = PASTE_REMINDER_ID_DI_SINI
+
+
+###############################################################################
+# ═══════════════════════════════════════════════════════════════════════════
+#  TAB 0 — BERANDA (home_view)
+# ═══════════════════════════════════════════════════════════════════════════
+###############################################################################
+
+
+###############################################################################
+# 0.1  GET DASHBOARD — Ringkasan Beranda
+###############################################################################
+# Mengembalikan semua statistik yang dibutuhkan tab Beranda dalam 1 request.
+# Data dihitung di server menggunakan MongoDB aggregation (efisien, konsisten).
+#
+# Method  : GET
+# URL     : /events/:eventId/dashboard
+# Auth    : Bearer Token (required) — harus member accepted
+# -----------------------------------------------------------------------------
+
+### 0.1 — Ambil ringkasan acara
+GET {{baseUrl}}/events/{{eventId}}/dashboard
+Authorization: Bearer {{token}}
+
+# ✅ 200 OK
+# {
+#   "success": true,
+#   "message": "Ringkasan acara berhasil diambil",
+#   "data": {
+#     "totalKebutuhan":  25000000,
+#     "kebutuhanCount":  8,
+#     "totalTabungan":   9500000,
+#     "sisaTarget":      15500000,
+#     "progresPersen":   0.38,       ← 0.0 s/d 1.0
+#     "tabunganRecent": [            ← 5 entri terbaru
+#       {
+#         "id": "...",
+#         "userId": "...",
+#         "namaUser": "Salman Ananda",
+#         "jumlah": 1500000,
+#         "tanggal": "2026-04-10T...",
+#         "catatan": "Gajian bulan April",
+#         "createdAt": "..."
+#       }
+#     ]
+#   }
+# }
+#
+# ❌ 401 Unauthorized — token tidak ada / tidak valid
+# ❌ 403 Forbidden   — bukan member accepted
+# ❌ 404 Not Found   — acara tidak ditemukan
+
+
+###############################################################################
+# 0.2  GET TABUNGAN — Semua Catatan Tabungan
+###############################################################################
+# Mengembalikan seluruh catatan tabungan acara, Urut: tanggal terbaru dulu.
+# Opsional filter per bulan dan/atau tahun (untuk fitur filter di TabunganView).
+#
+# Method  : GET
+# URL     : /events/:eventId/tabungan?bulan=&tahun=
+# Auth    : Bearer Token (required) — harus member accepted
+#
+# Query Params:
+#   bulan   number  optional  1 – 12 (filter bulan)
+#   tahun   number  optional  YYYY   (filter tahun)
+# -----------------------------------------------------------------------------
+
+### 0.2a — Semua tabungan (tanpa filter)
+GET {{baseUrl}}/events/{{eventId}}/tabungan
+Authorization: Bearer {{token}}
+
+# ✅ 200 OK
+# {
+#   "success": true,
+#   "message": "Daftar tabungan berhasil diambil",
+#   "data": [
+#     {
+#       "id": "...",
+#       "eventId": "...",
+#       "userId": "...",
+#       "namaUser": "Salman Ananda",
+#       "jumlah": 1500000,
+#       "tanggal": "2026-04-10T00:00:00.000Z",
+#       "catatan": "Gajian bulan April",
+#       "createdAt": "..."
+#     }
+#   ]
+# }
+
+
+### 0.2b — Filter tabungan bulan April 2026
+GET {{baseUrl}}/events/{{eventId}}/tabungan?bulan=4&tahun=2026
+Authorization: Bearer {{token}}
+
+
+### 0.2c — Filter hanya tahun 2026 (semua bulan)
+GET {{baseUrl}}/events/{{eventId}}/tabungan?tahun=2026
+Authorization: Bearer {{token}}
+
+
+###############################################################################
+# 0.3  POST TABUNGAN — Catat Tabungan Baru
+###############################################################################
+# Siapa pun yang menjadi accepted member dapat mencatat tabungan.
+# namaUser diambil otomatis dari token yang sedang login — tidak perlu dikirim.
+# Tanggal tidak boleh di masa depan.
+#
+# Method  : POST
+# URL     : /events/:eventId/tabungan
+# Auth    : Bearer Token (required) — harus member accepted
+# -----------------------------------------------------------------------------
+
+### 0.3 — Catat tabungan baru (FAB di tab Beranda)
+POST {{baseUrl}}/events/{{eventId}}/tabungan
+Authorization: Bearer {{token}}
+Content-Type: {{ct}}
+
+{
+  "jumlah": 1500000,
+  "tanggal": "2026-04-10",
+  "catatan": "Gajian bulan April, transfer ke BCA"
+}
+
+# ✅ 201 Created
+# {
+#   "success": true,
+#   "message": "Catatan tabungan berhasil disimpan",
+#   "data": {
+#     "id": "...",
+#     "eventId": "...",
+#     "userId": "...",
+#     "namaUser": "Salman Ananda",
+#     "jumlah": 1500000,
+#     "tanggal": "2026-04-10T00:00:00.000Z",
+#     "catatan": "Gajian bulan April, transfer ke BCA",
+#     "createdAt": "..."
+#   }
+# }
+#
+# ❌ 400 Bad Request — tanggal di masa depan
+# ❌ 403 Forbidden   — bukan member accepted
+# ❌ 422 Unprocessable — validasi gagal
+#
+# Body Fields:
+#   jumlah   number   required  > 0, bilangan bulat (Rp)
+#   tanggal  string   required  ISO date (YYYY-MM-DD), max hari ini
+#   catatan  string   optional  Max 500 karakter
+
+
+### 0.3b — Catat tanpa catatan
+POST {{baseUrl}}/events/{{eventId}}/tabungan
+Authorization: Bearer {{token}}
+Content-Type: {{ct}}
+
+{
+  "jumlah": 500000,
+  "tanggal": "2026-04-14"
+}
+
+
+###############################################################################
+# 0.4  DELETE TABUNGAN — Hapus Catatan Tabungan
+###############################################################################
+# Hanya creator catatan atau owner acara yang dapat menghapus.
+#
+# Method  : DELETE
+# URL     : /events/:eventId/tabungan/:tabunganId
+# Auth    : Bearer Token (required) — harus member accepted
+# -----------------------------------------------------------------------------
+
+### 0.4 — Hapus catatan tabungan
+DELETE {{baseUrl}}/events/{{eventId}}/tabungan/{{tabunganId}}
+Authorization: Bearer {{token}}
+
+# ✅ 200 OK — { "success": true, "message": "Catatan tabungan berhasil dihapus" }
+# ❌ 403 Forbidden — bukan creator catatan dan bukan owner acara
+# ❌ 404 Not Found — catatan tidak ditemukan
+
+
+###############################################################################
+# ═══════════════════════════════════════════════════════════════════════════
+#  TAB 1 — KEBUTUHAN ACARA (kebutuhan_view)
+# ═══════════════════════════════════════════════════════════════════════════
+###############################################################################
+
+
+###############################################################################
+# 1.1  GET KEBUTUHAN — Semua Item Kebutuhan
+###############################################################################
+# Mengembalikan semua item kebutuhan acara, urut: tanggal target terdekat dulu.
+#
+# Method  : GET
+# URL     : /events/:eventId/kebutuhan
+# Auth    : Bearer Token (required) — harus member accepted
+# -----------------------------------------------------------------------------
+
+### 1.1 — Daftar semua kebutuhan
+GET {{baseUrl}}/events/{{eventId}}/kebutuhan
+Authorization: Bearer {{token}}
+
+# ✅ 200 OK
+# {
+#   "success": true,
+#   "message": "Daftar kebutuhan berhasil diambil",
+#   "data": [
+#     {
+#       "id": "...",
+#       "eventId": "...",
+#       "createdBy": { "id": "...", "name": "Salman Ananda" },
+#       "nama": "Gedung Resepsi",
+#       "biaya": 15000000,
+#       "tanggal": "2027-05-01T00:00:00.000Z",
+#       "catatan": "Gedung Serbaguna Kota",
+#       "reminderAktif": true,
+#       "createdAt": "...",
+#       "updatedAt": "..."
+#     }
+#   ]
+# }
+#
+# ❌ 403 Forbidden — bukan member accepted
+# ❌ 404 Not Found — acara tidak ditemukan
+
+
+###############################################################################
+# 1.2  POST KEBUTUHAN — Tambah Item Kebutuhan
+###############################################################################
+# Hanya editor yang dapat menambahkan. Owner selalu bisa.
+#
+# Method  : POST
+# URL     : /events/:eventId/kebutuhan
+# Auth    : Bearer Token (required) — harus editor / owner
+# -----------------------------------------------------------------------------
+
+### 1.2 — Tambah kebutuhan baru (FAB di tab Kebutuhan)
+POST {{baseUrl}}/events/{{eventId}}/kebutuhan
+Authorization: Bearer {{token}}
+Content-Type: {{ct}}
+
+{
+  "nama": "Gedung Resepsi",
+  "biaya": 15000000,
+  "tanggal": "2027-05-01",
+  "catatan": "Gedung Serbaguna Kota, DP 30%",
+  "reminderAktif": true
+}
+
+# ✅ 201 Created
+# {
+#   "success": true,
+#   "message": "Kebutuhan berhasil ditambahkan",
+#   "data": { ... }
+# }
+#
+# ❌ 403 Forbidden   — bukan editor / bukan member
+# ❌ 422 Unprocessable — validasi gagal
+#
+# Body Fields:
+#   nama          string   required  Min 2, max 200 karakter
+#   biaya         number   required  >= 0 (Rp estimasi)
+#   tanggal       string   required  ISO date (YYYY-MM-DD) — target pembayaran
+#   catatan       string   optional  Max 500 karakter
+#   reminderAktif boolean  optional  Default: true
+
+
+### 1.2b — Tambah kebutuhan katering
+POST {{baseUrl}}/events/{{eventId}}/kebutuhan
+Authorization: Bearer {{token}}
+Content-Type: {{ct}}
+
+{
+  "nama": "Katering 500 pax",
+  "biaya": 25000000,
+  "tanggal": "2027-07-01",
+  "reminderAktif": true
+}
+
+
+###############################################################################
+# 1.3  PATCH KEBUTUHAN — Update Item Kebutuhan
+###############################################################################
+# Hanya editor dapat mengubah. Semua field bersifat opsional — patch semantics.
+#
+# Method  : PATCH
+# URL     : /events/:eventId/kebutuhan/:kebutuhanId
+# Auth    : Bearer Token (required) — harus editor / owner
+# -----------------------------------------------------------------------------
+
+### 1.3 — Update nama dan biaya kebutuhan
+PATCH {{baseUrl}}/events/{{eventId}}/kebutuhan/{{kebutuhanId}}
+Authorization: Bearer {{token}}
+Content-Type: {{ct}}
+
+{
+  "nama": "Gedung Resepsi (Updated)",
+  "biaya": 18000000,
+  "catatan": "Harga naik, sudah konfirmasi vendor"
+}
+
+# ✅ 200 OK
+# ❌ 403 Forbidden — bukan editor / bukan member
+# ❌ 404 Not Found — kebutuhan tidak ditemukan di acara ini
+# ❌ 422 Unprocessable — validasi gagal (minimal satu field harus ada)
+
+
+### 1.3b — Nonaktifkan reminder
+PATCH {{baseUrl}}/events/{{eventId}}/kebutuhan/{{kebutuhanId}}
+Authorization: Bearer {{token}}
+Content-Type: {{ct}}
+
+{
+  "reminderAktif": false
+}
+
+
+###############################################################################
+# 1.4  DELETE KEBUTUHAN — Hapus Item Kebutuhan
+###############################################################################
+# Hanya editor dapat menghapus.
+#
+# Method  : DELETE
+# URL     : /events/:eventId/kebutuhan/:kebutuhanId
+# Auth    : Bearer Token (required) — harus editor / owner
+# -----------------------------------------------------------------------------
+
+### 1.4 — Hapus kebutuhan
+DELETE {{baseUrl}}/events/{{eventId}}/kebutuhan/{{kebutuhanId}}
+Authorization: Bearer {{token}}
+
+# ✅ 200 OK — { "success": true, "message": "Kebutuhan berhasil dihapus" }
+# ❌ 403 Forbidden — bukan editor
+# ❌ 404 Not Found — kebutuhan tidak ditemukan
+
+
+###############################################################################
+# ═══════════════════════════════════════════════════════════════════════════
+#  TAB 2 — KALENDER (kalender_view)
+# ═══════════════════════════════════════════════════════════════════════════
+###############################################################################
+# Kalender menampilkan 2 jenis event pada setiap tanggal:
+#   1. Kebutuhan Acara → dari /kebutuhan (gunakan 1.1 di atas)
+#   2. Pengingat Custom → dari /reminders
+#
+# Client perlu melakukan 2 GET setelah user membuka tab kalender:
+#   GET /events/:id/kebutuhan         (sudah ada di 1.1)
+#   GET /events/:id/reminders
+###############################################################################
+
+
+###############################################################################
+# 2.1  GET REMINDERS — Semua Pengingat
+###############################################################################
+# Mengembalikan semua pengingat kalender untuk acara.
+# Opsional filter per bulan dan/atau tahun.
+#
+# Method  : GET
+# URL     : /events/:eventId/reminders?bulan=&tahun=
+# Auth    : Bearer Token (required) — harus member accepted
+# -----------------------------------------------------------------------------
+
+### 2.1a — Semua pengingat
+GET {{baseUrl}}/events/{{eventId}}/reminders
+Authorization: Bearer {{token}}
+
+# ✅ 200 OK
+# {
+#   "success": true,
+#   "message": "Daftar pengingat berhasil diambil",
+#   "data": [
+#     {
+#       "id": "...",
+#       "eventId": "...",
+#       "createdBy": { "id": "...", "name": "Salman Ananda" },
+#       "judul": "Survey Gedung Pertama",
+#       "catatan": "Bawa brosur dan list pertanyaan vendor",
+#       "tanggal": "2026-05-03T00:00:00.000Z",
+#       "jamNotif": 8,
+#       "menitNotif": 0,
+#       "createdAt": "..."
+#     }
+#   ]
+# }
+
+
+### 2.1b — Filter pengingat bulan Juli 2027
+GET {{baseUrl}}/events/{{eventId}}/reminders?bulan=7&tahun=2027
+Authorization: Bearer {{token}}
+
+
+###############################################################################
+# 2.2  POST REMINDER — Tambah Pengingat
+###############################################################################
+# Semua accepted member dapat menambahkan pengingat.
+# jamNotif / menitNotif digunakan client untuk menjadwalkan push notification.
+#
+# Method  : POST
+# URL     : /events/:eventId/reminders
+# Auth    : Bearer Token (required) — harus member accepted
+# -----------------------------------------------------------------------------
+
+### 2.2 — Tambah pengingat (icon jam di kalender_view)
+POST {{baseUrl}}/events/{{eventId}}/reminders
+Authorization: Bearer {{token}}
+Content-Type: {{ct}}
+
+{
+  "judul": "Survey Gedung Pertama",
+  "catatan": "Bawa brosur dan list pertanyaan vendor",
+  "tanggal": "2026-05-03",
+  "jamNotif": 8,
+  "menitNotif": 0
+}
+
+# ✅ 201 Created
+# {
+#   "success": true,
+#   "message": "Pengingat berhasil ditambahkan",
+#   "data": {
+#     "id": "...",
+#     "eventId": "...",
+#     "createdBy": { "id": "...", "name": "Salman Ananda" },
+#     "judul": "Survey Gedung Pertama",
+#     "catatan": "Bawa brosur dan list pertanyaan vendor",
+#     "tanggal": "2026-05-03T00:00:00.000Z",
+#     "jamNotif": 8,
+#     "menitNotif": 0,
+#     "createdAt": "..."
+#   }
+# }
+#
+# ❌ 403 Forbidden   — bukan member accepted
+# ❌ 422 Unprocessable — validasi gagal
+#
+# Body Fields:
+#   judul      string   required  Min 2, max 200 karakter
+#   catatan    string   optional  Max 500 karakter
+#   tanggal    string   required  ISO date (YYYY-MM-DD)
+#   jamNotif   number   optional  0–23  (jam notif push, default: 7)
+#   menitNotif number   optional  0–59  (menit notif push, default: 0)
+
+
+### 2.2b — Pengingat tanpa catatan, waktu default (07:00)
+POST {{baseUrl}}/events/{{eventId}}/reminders
+Authorization: Bearer {{token}}
+Content-Type: {{ct}}
+
+{
+  "judul": "Bayar DP Katering",
+  "tanggal": "2027-06-15"
+}
+
+
+###############################################################################
+# 2.3  DELETE REMINDER — Hapus Pengingat
+###############################################################################
+# Hanya creator pengingat atau owner acara yang dapat menghapus.
+#
+# Method  : DELETE
+# URL     : /events/:eventId/reminders/:reminderId
+# Auth    : Bearer Token (required) — harus member accepted
+# -----------------------------------------------------------------------------
+
+### 2.3 — Hapus pengingat
+DELETE {{baseUrl}}/events/{{eventId}}/reminders/{{reminderId}}
+Authorization: Bearer {{token}}
+
+# ✅ 200 OK — { "success": true, "message": "Pengingat berhasil dihapus" }
+# ❌ 403 Forbidden — bukan creator dan bukan owner acara
+# ❌ 404 Not Found — pengingat tidak ditemukan
+
+
+###############################################################################
+# ═══════════════════════════════════════════════════════════════════════════
+#  RINGKASAN ENDPOINT — MAIN VIEW
+# ═══════════════════════════════════════════════════════════════════════════
+#
+#  DASHBOARD (Tab Beranda)
+#  ─────────────────────────────────────────────────────────────────────────
+#  GET    /events/:eventId/dashboard                     → Ringkasan acara
+#
+#  TABUNGAN (Tab Beranda)
+#  ─────────────────────────────────────────────────────────────────────────
+#  GET    /events/:eventId/tabungan                      → Daftar tabungan
+#  GET    /events/:eventId/tabungan?bulan=4&tahun=2026   → Filter periode
+#  POST   /events/:eventId/tabungan                      → Catat tabungan baru
+#  DELETE /events/:eventId/tabungan/:id                  → Hapus catatan
+#
+#  KEBUTUHAN (Tab Kebutuhan)
+#  ─────────────────────────────────────────────────────────────────────────
+#  GET    /events/:eventId/kebutuhan                     → Daftar kebutuhan
+#  POST   /events/:eventId/kebutuhan                     → Tambah kebutuhan (editor)
+#  PATCH  /events/:eventId/kebutuhan/:id                 → Update kebutuhan (editor)
+#  DELETE /events/:eventId/kebutuhan/:id                 → Hapus kebutuhan (editor)
+#
+#  REMINDERS / KALENDER (Tab Kalender)
+#  ─────────────────────────────────────────────────────────────────────────
+#  GET    /events/:eventId/kebutuhan                     → Kebutuhan di kalender
+#  GET    /events/:eventId/reminders                     → Daftar pengingat
+#  GET    /events/:eventId/reminders?bulan=7&tahun=2027  → Filter periode
+#  POST   /events/:eventId/reminders                     → Tambah pengingat
+#  DELETE /events/:eventId/reminders/:id                 → Hapus pengingat
+#
+# ═══════════════════════════════════════════════════════════════════════════
+#
+#  DATABASE SCHEMA
+#  ─────────────────────────────────────────────────────────────────────────
+#  Tabungan
+#    eventId         ObjectId  (ref: Event)
+#    userId          ObjectId  (ref: User — siapa yang mencatat)
+#    jumlah          Number    (Rp, integer)
+#    tanggal         Date
+#    catatan         String
+#
+#  Kebutuhan
+#    eventId         ObjectId  (ref: Event)
+#    createdBy       ObjectId  (ref: User)
+#    nama            String
+#    biaya           Number    (Rp estimasi)
+#    tanggal         Date      (target pembayaran)
+#    catatan         String
+#    reminderAktif   Boolean
+#
+#  Reminder
+#    eventId         ObjectId  (ref: Event)
+#    createdBy       ObjectId  (ref: User)
+#    judul           String
+#    catatan         String
+#    tanggal         Date
+#    jamNotif        Number    (0–23)
+#    menitNotif      Number    (0–59)
+#
+#  Catatan:
+#  - Semua model di-index pada (eventId, tanggal) untuk query efisien
+#  - Kebutuhan digunakan ganda: di tab Kebutuhan dan di Kalender
+#  - Scheduling push-notification dilakukan di sisi Flutter (device),
+#    server hanya menyimpan data jamNotif/menitNotif
+#
+###############################################################################

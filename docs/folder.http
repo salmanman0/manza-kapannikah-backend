@@ -1,0 +1,587 @@
+# =============================================================================
+# KapanNikah API — Folder (Event) & Kolaborator
+# =============================================================================
+# Base URL  : http://localhost:3000/api/v1
+# Auth Type : Bearer Token (isi @token setelah login)
+#
+# Cara pakai di VS Code:
+#   Install ekstensi "REST Client" (humao.rest-client)
+#   Klik "Send Request" di atas setiap ### baris
+#
+# Related: docs/auth.http, docs/profile.http
+# =============================================================================
+
+@baseUrl = http://localhost:3000/api/v1
+@ct      = application/json
+
+# Isi setelah login berhasil:
+@token       = PASTE_ACCESS_TOKEN_DI_SINI
+
+# Isi setelah berhasil membuat event:
+@eventId     = PASTE_EVENT_ID_DI_SINI
+
+# Isi setelah berhasil mengundang kolaborator:
+@collaboratorId  = PASTE_COLLABORATOR_ID_DI_SINI
+
+# Isi setelah mendapatkan undangan:
+@invitationId    = PASTE_INVITATION_ID_DI_SINI
+
+
+###############################################################################
+# ═══════════════════════════════════════════════════════════════════════════
+#  BAGIAN 1 — EVENT (FOLDER ACARA)
+# ═══════════════════════════════════════════════════════════════════════════
+###############################################################################
+
+
+###############################################################################
+# 1.1  GET MY EVENTS — Daftar Acara
+###############################################################################
+# Mengambil semua acara yang dimiliki atau diikuti oleh user yang sedang login.
+# User dikatakan "ikut" jika status kolaboratornya adalah 'accepted'.
+#
+# Method  : GET
+# URL     : /events?filter=active|archived|all
+# Auth    : Bearer Token (required)
+#
+# Query Params:
+#   filter   string  optional  Nilai: active (default) | archived | all
+# -----------------------------------------------------------------------------
+
+### 1.1a — Semua acara aktif (tab "Semua" di folder_home)
+GET {{baseUrl}}/events?filter=active
+Authorization: Bearer {{token}}
+
+# ✅ 200 OK
+# {
+#   "success": true,
+#   "message": "Daftar acara berhasil diambil",
+#   "data": [
+#     {
+#       "id": "664abc...",
+#       "ownerId": "663...",
+#       "name": "Tunangan Salman & Izza",
+#       "date": "2027-07-25T00:00:00.000Z",
+#       "initialBudget": 5000000,
+#       "isArchived": false,
+#       "createdAt": "2026-04-01T...",
+#       "updatedAt": "2026-04-01T...",
+#       "collaborators": [
+#         {
+#           "id": "665...",
+#           "userId": "663...",
+#           "name": "Salman Ananda",
+#           "email": "salman@example.com",
+#           "role": "editor",
+#           "status": "accepted",
+#           "createdAt": "..."
+#         },
+#         {
+#           "id": "666...",
+#           "userId": null,
+#           "name": "izza@example.com",
+#           "email": "izza@example.com",
+#           "role": "viewer",
+#           "status": "pending",
+#           "createdAt": "..."
+#         }
+#       ]
+#     }
+#   ]
+# }
+#
+# ❌ 401 Unauthorized — token tidak ada / tidak valid
+
+
+### 1.1b — Acara yang diarsipkan (tab "Diarsipkan" di folder_home)
+GET {{baseUrl}}/events?filter=archived
+Authorization: Bearer {{token}}
+
+
+### 1.1c — Semua acara (aktif + diarsipkan)
+GET {{baseUrl}}/events?filter=all
+Authorization: Bearer {{token}}
+
+
+###############################################################################
+# 1.2  POST CREATE EVENT — Buat Acara Baru
+###############################################################################
+# Membuat acara baru. User yang membuat otomatis menjadi pemilik (owner)
+# sekaligus kolaborator pertama dengan role 'editor' dan status 'accepted'.
+# Kolaborator awal yang disertakan di body akan mendapatkan undangan (status 'pending').
+#
+# Method  : POST
+# URL     : /events
+# Auth    : Bearer Token (required)
+# -----------------------------------------------------------------------------
+
+### 1.2a — Buat acara baru (dari halaman folder_create)
+POST {{baseUrl}}/events
+Authorization: Bearer {{token}}
+Content-Type: {{ct}}
+
+{
+  "name": "Tunangan Salman & Izza",
+  "date": "2027-07-25",
+  "initialBudget": 5000000,
+  "collaborators": [
+    { "email": "izza@example.com", "role": "viewer" },
+    { "email": "johan@example.com", "role": "editor" }
+  ]
+}
+
+# ✅ 201 Created
+# {
+#   "success": true,
+#   "message": "Acara berhasil dibuat",
+#   "data": {
+#     "id": "664abc...",
+#     "ownerId": "663...",
+#     "name": "Tunangan Salman & Izza",
+#     "date": "2027-07-25T00:00:00.000Z",
+#     "initialBudget": 5000000,
+#     "isArchived": false,
+#     "collaborators": [ ... ],
+#     "createdAt": "...",
+#     "updatedAt": "..."
+#   }
+# }
+#
+# ❌ 422 Unprocessable — validasi gagal
+# {
+#   "success": false,
+#   "message": "Validasi gagal",
+#   "errors": [
+#     { "field": "name", "message": "Nama acara wajib diisi" },
+#     { "field": "date", "message": "Tanggal acara wajib diisi" }
+#   ]
+# }
+#
+# Body Fields:
+#   name             string   required  Min 2, max 150 karakter
+#   date             string   required  Format ISO: YYYY-MM-DD
+#   initialBudget    number   optional  Default 0. Tabungan saat ini (Rp)
+#   collaborators    array    optional  Default []. Daftar email + role yang diundang
+
+
+### 1.2b — Buat acara tanpa kolaborator awal
+POST {{baseUrl}}/events
+Authorization: Bearer {{token}}
+Content-Type: {{ct}}
+
+{
+  "name": "Resepsi Salman & Izza",
+  "date": "2027-08-10"
+}
+
+
+###############################################################################
+# 1.3  GET EVENT DETAIL — Detail Acara
+###############################################################################
+# Method  : GET
+# URL     : /events/:eventId
+# Auth    : Bearer Token (required) — harus member accepted
+# -----------------------------------------------------------------------------
+
+### 1.3 — Detail acara
+GET {{baseUrl}}/events/{{eventId}}
+Authorization: Bearer {{token}}
+
+# ✅ 200 OK — mengembalikan detail event + daftar kolaborator
+# ❌ 403 Forbidden — bukan member accepted
+# ❌ 404 Not Found — acara tidak ditemukan
+
+
+###############################################################################
+# 1.4  PATCH UPDATE EVENT — Edit Acara
+###############################################################################
+# Hanya kolaborator dengan role 'editor' (termasuk owner) yang bisa mengubah acara.
+#
+# Method  : PATCH
+# URL     : /events/:eventId
+# Auth    : Bearer Token (required)
+# -----------------------------------------------------------------------------
+
+### 1.4 — Update nama dan tanggal acara
+PATCH {{baseUrl}}/events/{{eventId}}
+Authorization: Bearer {{token}}
+Content-Type: {{ct}}
+
+{
+  "name": "Tunangan Salman & Izza (Updated)",
+  "date": "2027-10-01",
+  "initialBudget": 8000000
+}
+
+# ✅ 200 OK
+# ❌ 403 Forbidden — bukan editor / bukan member
+# ❌ 422 Unprocessable — validasi gagal (minimal satu field harus ada)
+
+
+###############################################################################
+# 1.5  DELETE EVENT — Hapus Acara
+###############################################################################
+# Hanya pemilik (owner) yang dapat menghapus acara.
+# Semua kolaborator di acara tersebut juga akan dihapus.
+#
+# Method  : DELETE
+# URL     : /events/:eventId
+# Auth    : Bearer Token (required)
+# -----------------------------------------------------------------------------
+
+### 1.5 — Hapus acara
+DELETE {{baseUrl}}/events/{{eventId}}
+Authorization: Bearer {{token}}
+
+# ✅ 200 OK — { "success": true, "message": "Acara berhasil dihapus" }
+# ❌ 403 Forbidden — bukan owner
+# ❌ 404 Not Found — acara tidak ditemukan
+
+
+###############################################################################
+# 1.6  PATCH ARCHIVE — Arsipkan Acara
+###############################################################################
+# Hanya owner yang bisa arsipkan. Acara yang diarsipkan masih bisa diakses
+# via filter=archived. Tidak dihapus permanen.
+#
+# Method  : PATCH
+# URL     : /events/:eventId/archive
+# Auth    : Bearer Token (required)
+# -----------------------------------------------------------------------------
+
+### 1.6 — Arsipkan acara (swipe action di folder_home)
+PATCH {{baseUrl}}/events/{{eventId}}/archive
+Authorization: Bearer {{token}}
+
+# ✅ 200 OK — isArchived menjadi true
+# ❌ 403 Forbidden — bukan owner
+
+
+###############################################################################
+# 1.7  PATCH UNARCHIVE — Pulihkan Acara dari Arsip
+###############################################################################
+# Method  : PATCH
+# URL     : /events/:eventId/unarchive
+# Auth    : Bearer Token (required)
+# -----------------------------------------------------------------------------
+
+### 1.7 — Pulihkan acara dari arsip
+PATCH {{baseUrl}}/events/{{eventId}}/unarchive
+Authorization: Bearer {{token}}
+
+# ✅ 200 OK — isArchived menjadi false
+
+
+###############################################################################
+# ═══════════════════════════════════════════════════════════════════════════
+#  BAGIAN 2 — UNDANGAN (tab "Undangan" di folder_home)
+# ═══════════════════════════════════════════════════════════════════════════
+###############################################################################
+
+
+###############################################################################
+# 2.1  GET MY INVITATIONS — Daftar Undangan Masuk
+###############################################################################
+# Mengambil semua undangan kolaborasi yang berstatus 'pending' milik user login.
+# Digunakan untuk tab "Undangan" di halaman folder_home.
+#
+# Method  : GET
+# URL     : /events/invitations
+# Auth    : Bearer Token (required)
+# -----------------------------------------------------------------------------
+
+### 2.1 — Daftar undangan yang belum direspons
+GET {{baseUrl}}/events/invitations
+Authorization: Bearer {{token}}
+
+# ✅ 200 OK
+# {
+#   "success": true,
+#   "message": "Daftar undangan berhasil diambil",
+#   "data": [
+#     {
+#       "id": "667...",
+#       "event": {
+#         "id": "664...",
+#         "name": "Lamaran Salman & Izza",
+#         "date": "2027-07-25T00:00:00.000Z"
+#       },
+#       "invitedBy": {
+#         "id": "663...",
+#         "name": "Salman Ananda M. S"
+#       },
+#       "role": "viewer",
+#       "status": "pending",
+#       "createdAt": "2026-03-28T10:00:00.000Z"
+#     }
+#   ]
+# }
+
+
+###############################################################################
+# 2.2  PATCH ACCEPT INVITATION — Terima Undangan
+###############################################################################
+# Method  : PATCH
+# URL     : /events/invitations/:invitationId/accept
+# Auth    : Bearer Token (required) — hanya pemilik email undangan
+# -----------------------------------------------------------------------------
+
+### 2.2 — Terima undangan
+PATCH {{baseUrl}}/events/invitations/{{invitationId}}/accept
+Authorization: Bearer {{token}}
+
+# ✅ 200 OK
+# {
+#   "success": true,
+#   "message": "Undangan berhasil diterima",
+#   "data": {
+#     "id": "667...",
+#     "status": "accepted",
+#     "respondedAt": "2026-04-14T08:00:00.000Z"
+#   }
+# }
+#
+# ❌ 400 Bad Request — undangan sudah pernah direspons
+# ❌ 403 Forbidden — undangan bukan milik user ini
+# ❌ 404 Not Found — undangan tidak ditemukan
+
+
+###############################################################################
+# 2.3  PATCH REJECT INVITATION — Tolak Undangan
+###############################################################################
+# Method  : PATCH
+# URL     : /events/invitations/:invitationId/reject
+# Auth    : Bearer Token (required)
+# -----------------------------------------------------------------------------
+
+### 2.3 — Tolak undangan
+PATCH {{baseUrl}}/events/invitations/{{invitationId}}/reject
+Authorization: Bearer {{token}}
+
+# ✅ 200 OK
+# {
+#   "success": true,
+#   "message": "Undangan berhasil ditolak",
+#   "data": { "id": "667...", "status": "rejected", "respondedAt": "..." }
+# }
+
+
+###############################################################################
+# ═══════════════════════════════════════════════════════════════════════════
+#  BAGIAN 3 — KOLABORATOR (halaman collaborator & collaborator_invite)
+# ═══════════════════════════════════════════════════════════════════════════
+###############################################################################
+
+
+###############################################################################
+# 3.1  GET COLLABORATORS — Daftar Kolaborator Acara
+###############################################################################
+# Mengembalikan semua kolaborator acara (semua status: accepted, pending, rejected).
+# Hanya member dengan status 'accepted' yang bisa melihat daftar ini.
+# isOwner: true berarti kolaborator tersebut adalah pemilik acara.
+#
+# Method  : GET
+# URL     : /events/:eventId/collaborators
+# Auth    : Bearer Token (required) — harus member accepted
+# -----------------------------------------------------------------------------
+
+### 3.1 — Daftar kolaborator (halaman collaborator)
+GET {{baseUrl}}/events/{{eventId}}/collaborators
+Authorization: Bearer {{token}}
+
+# ✅ 200 OK
+# {
+#   "success": true,
+#   "message": "Daftar kolaborator berhasil diambil",
+#   "data": [
+#     {
+#       "id": "665...",
+#       "userId": "663...",
+#       "name": "Salman Ananda",
+#       "email": "salman@example.com",
+#       "role": "editor",
+#       "status": "accepted",
+#       "isOwner": true,
+#       "invitedBy": { "id": "663...", "name": "Salman Ananda" },
+#       "createdAt": "..."
+#     },
+#     {
+#       "id": "666...",
+#       "userId": "664...",
+#       "name": "Izza Nabila",
+#       "email": "izza@example.com",
+#       "role": "viewer",
+#       "status": "accepted",
+#       "isOwner": false,
+#       "invitedBy": { "id": "663...", "name": "Salman Ananda" },
+#       "createdAt": "..."
+#     },
+#     {
+#       "id": "667...",
+#       "userId": null,
+#       "name": "johan@example.com",
+#       "email": "johan@example.com",
+#       "role": "viewer",
+#       "status": "pending",
+#       "isOwner": false,
+#       "invitedBy": { "id": "663...", "name": "Salman Ananda" },
+#       "createdAt": "..."
+#     }
+#   ]
+# }
+#
+# ❌ 403 Forbidden — bukan member accepted
+# ❌ 404 Not Found — acara tidak ditemukan
+
+
+###############################################################################
+# 3.2  POST INVITE COLLABORATOR — Undang Kolaborator
+###############################################################################
+# Mengundang kolaborator baru dengan email dan role.
+# Hanya owner yang dapat mengundang.
+# Jika email belum terdaftar di aplikasi: undangan tetap dibuat (userId = null),
+# dan akan ter-link otomatis ketika user mendaftar dengan email tersebut.
+#
+# Method  : POST
+# URL     : /events/:eventId/collaborators
+# Auth    : Bearer Token (required) — harus owner
+# -----------------------------------------------------------------------------
+
+### 3.2 — Undang kolaborator (halaman collaborator_invite)
+POST {{baseUrl}}/events/{{eventId}}/collaborators
+Authorization: Bearer {{token}}
+Content-Type: {{ct}}
+
+{
+  "email": "izza@example.com",
+  "role": "viewer"
+}
+
+# ✅ 201 Created
+# {
+#   "success": true,
+#   "message": "Undangan kolaborator berhasil dikirim",
+#   "data": {
+#     "id": "667...",
+#     "userId": "664...",
+#     "name": "Izza Nabila",
+#     "email": "izza@example.com",
+#     "role": "viewer",
+#     "status": "pending",
+#     "isOwner": false,
+#     "invitedBy": { "id": "663...", "name": "Salman Ananda" },
+#     "createdAt": "..."
+#   }
+# }
+#
+# ❌ 400 Bad Request — mengundang diri sendiri
+# ❌ 403 Forbidden — bukan owner
+# ❌ 409 Conflict — email sudah diundang sebelumnya
+# ❌ 422 Unprocessable — validasi gagal
+#
+# Body Fields:
+#   email  string  required  Email kolaborator yang diundang
+#   role   string  optional  editor | viewer (default: viewer)
+
+
+### 3.2b — Undang dengan role editor
+POST {{baseUrl}}/events/{{eventId}}/collaborators
+Authorization: Bearer {{token}}
+Content-Type: {{ct}}
+
+{
+  "email": "planner@example.com",
+  "role": "editor"
+}
+
+
+###############################################################################
+# 3.3  PATCH UPDATE COLLABORATOR ROLE — Ubah Role Kolaborator
+###############################################################################
+# Hanya owner yang bisa mengubah role. Role pemilik tidak dapat diubah.
+#
+# Method  : PATCH
+# URL     : /events/:eventId/collaborators/:collaboratorId
+# Auth    : Bearer Token (required) — harus owner
+# -----------------------------------------------------------------------------
+
+### 3.3 — Ubah role kolaborator
+PATCH {{baseUrl}}/events/{{eventId}}/collaborators/{{collaboratorId}}
+Authorization: Bearer {{token}}
+Content-Type: {{ct}}
+
+{
+  "role": "editor"
+}
+
+# ✅ 200 OK
+# {
+#   "success": true,
+#   "message": "Role kolaborator berhasil diperbarui",
+#   "data": { "id": "666...", "role": "editor" }
+# }
+#
+# ❌ 400 Bad Request — mencoba mengubah role pemilik acara
+# ❌ 403 Forbidden — bukan owner
+# ❌ 404 Not Found — kolaborator tidak ditemukan
+
+
+###############################################################################
+# 3.4  DELETE REMOVE COLLABORATOR — Hapus Kolaborator
+###############################################################################
+# Hanya owner yang bisa menghapus. Pemilik tidak dapat dihapus dari acaranya sendiri.
+#
+# Method  : DELETE
+# URL     : /events/:eventId/collaborators/:collaboratorId
+# Auth    : Bearer Token (required) — harus owner
+# -----------------------------------------------------------------------------
+
+### 3.4 — Hapus kolaborator dari acara
+DELETE {{baseUrl}}/events/{{eventId}}/collaborators/{{collaboratorId}}
+Authorization: Bearer {{token}}
+
+# ✅ 200 OK — { "success": true, "message": "Kolaborator berhasil dihapus" }
+# ❌ 400 Bad Request — mencoba menghapus pemilik acara
+# ❌ 403 Forbidden — bukan owner
+# ❌ 404 Not Found — kolaborator tidak ditemukan
+
+
+###############################################################################
+# ═══════════════════════════════════════════════════════════════════════════
+#  RINGKASAN ENDPOINT
+# ═══════════════════════════════════════════════════════════════════════════
+#
+#  EVENT (FOLDER)
+#  ─────────────────────────────────────────────────────────────────────────
+#  GET    /events                          → Daftar acara saya (active/archived/all)
+#  POST   /events                          → Buat acara baru
+#  GET    /events/:eventId                 → Detail acara
+#  PATCH  /events/:eventId                 → Update acara (editor/owner)
+#  DELETE /events/:eventId                 → Hapus acara (owner only)
+#  PATCH  /events/:eventId/archive         → Arsipkan acara (owner only)
+#  PATCH  /events/:eventId/unarchive       → Pulihkan dari arsip (owner only)
+#
+#  UNDANGAN
+#  ─────────────────────────────────────────────────────────────────────────
+#  GET    /events/invitations                          → Undangan masuk saya
+#  PATCH  /events/invitations/:id/accept               → Terima undangan
+#  PATCH  /events/invitations/:id/reject               → Tolak undangan
+#
+#  KOLABORATOR
+#  ─────────────────────────────────────────────────────────────────────────
+#  GET    /events/:eventId/collaborators               → Daftar kolaborator
+#  POST   /events/:eventId/collaborators               → Undang kolaborator
+#  PATCH  /events/:eventId/collaborators/:id           → Ubah role
+#  DELETE /events/:eventId/collaborators/:id           → Hapus kolaborator
+#
+# ═══════════════════════════════════════════════════════════════════════════
+#
+#  ATURAN OTORISASI
+#  ─────────────────────────────────────────────────────────────────────────
+#  Owner   : full access — create, read, update, delete, archive,
+#            manage collaborators (invite, change role, remove)
+#  Editor  : read, update event detail
+#  Viewer  : read only
+#  Invited : terima / tolak undangan, lalu akses sesuai role
+#
+###############################################################################
