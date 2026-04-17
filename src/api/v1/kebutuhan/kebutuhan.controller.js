@@ -28,10 +28,20 @@ const update = asyncHandler(async (req, res) => {
   return ApiResponse.success(res, kebutuhan, 'Kebutuhan berhasil diperbarui');
 });
 
+// ── PATCH /events/:eventId/kebutuhan/:kebutuhanId/status ──────────────────
+const updateStatus = asyncHandler(async (req, res) => {
+  const kebutuhan = await kebutuhanService.updateStatus(
+    req.params.kebutuhanId,
+    req.params.eventId,
+    req.body.selesai
+  );
+  return ApiResponse.success(res, kebutuhan, 'Status kebutuhan berhasil diperbarui');
+});
+
 // ── DELETE /events/:eventId/kebutuhan/:kebutuhanId ─────────────────────────
 const remove = asyncHandler(async (req, res) => {
   await kebutuhanService.delete(req.params.kebutuhanId, req.params.eventId);
   return ApiResponse.success(res, null, 'Kebutuhan berhasil dihapus');
 });
 
-module.exports = { getAll, create, update, remove };
+module.exports = { getAll, create, update, updateStatus, remove };

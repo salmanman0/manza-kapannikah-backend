@@ -47,6 +47,17 @@ class KebutuhanService {
     return this._response(kebutuhan);
   }
 
+  async updateStatus(kebutuhanId, eventId, selesai) {
+    const kebutuhan = await Kebutuhan.findOne({ _id: kebutuhanId, eventId });
+    if (!kebutuhan) throw ApiError.notFound('Kebutuhan tidak ditemukan');
+
+    kebutuhan.selesai = selesai;
+    await kebutuhan.save();
+
+    await kebutuhan.populate('createdBy', 'name');
+    return this._response(kebutuhan);
+  }
+
   /**
    * Hapus kebutuhan. Diperlukan role editor.
    */

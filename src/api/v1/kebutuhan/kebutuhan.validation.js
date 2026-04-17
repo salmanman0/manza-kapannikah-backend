@@ -41,4 +41,11 @@ const updateKebutuhan = Joi.object({
   'object.min': 'Setidaknya satu field harus diisi untuk update',
 });
 
-module.exports = { createKebutuhan, updateKebutuhan };
+const updateStatus = Joi.object({
+  selesai: Joi.boolean().required().messages({
+    'boolean.base': 'Status selesai harus berupa boolean',
+    'any.required': 'Status selesai wajib diisi',
+  }),
+});
+
+module.exports = { createKebutuhan, updateKebutuhan, updateStatus };

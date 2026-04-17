@@ -21,6 +21,13 @@ router.patch(
   validate(kebutuhanValidation.updateKebutuhan),
   kebutuhanController.update
 );
+router.patch(
+  '/:kebutuhanId/status',
+  assertMember,
+  assertEditor,
+  validate(kebutuhanValidation.updateStatus),
+  kebutuhanController.updateStatus
+);
 router.delete('/:kebutuhanId', assertMember, assertEditor, kebutuhanController.remove);
 
 module.exports = router;
