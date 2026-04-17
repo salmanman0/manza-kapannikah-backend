@@ -10,7 +10,7 @@ class KebutuhanService {
       .populate('createdBy', 'name')
       .sort({ tanggal: 1, createdAt: 1 });
 
-    return list.map((k) => this._format(k));
+    return list.map((k) => this._response(k));
   }
 
   /**
@@ -25,10 +25,11 @@ class KebutuhanService {
       tanggal: data.tanggal,
       catatan: data.catatan || '',
       reminderAktif: data.reminderAktif ?? true,
+      selesai: false,
     });
 
     await kebutuhan.populate('createdBy', 'name');
-    return this._format(kebutuhan);
+    return this._response(kebutuhan);
   }
 
   /**
@@ -43,7 +44,7 @@ class KebutuhanService {
     await kebutuhan.save();
 
     await kebutuhan.populate('createdBy', 'name');
-    return this._format(kebutuhan);
+    return this._response(kebutuhan);
   }
 
   /**
@@ -56,7 +57,7 @@ class KebutuhanService {
     await kebutuhan.deleteOne();
   }
 
-  _format(k) {
+  _response(k) {
     return {
       id: k._id,
       eventId: k.eventId,
@@ -68,6 +69,7 @@ class KebutuhanService {
       biaya: k.biaya,
       tanggal: k.tanggal,
       catatan: k.catatan,
+      selesai: k.selesai,
       reminderAktif: k.reminderAktif,
       createdAt: k.createdAt,
       updatedAt: k.updatedAt,
