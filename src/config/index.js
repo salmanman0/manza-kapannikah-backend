@@ -30,9 +30,13 @@ const config = {
     maxAttempts: parseInt(process.env.OTP_MAX_ATTEMPTS, 10) || 3,
   },
 
+  google: {
+    clientId: process.env.GOOGLE_CLIENT_ID,
+  },
+
   email: {
     resendApiKey: process.env.RESEND_API_KEY,
-    from: process.env.EMAIL_FROM || '"KapanNikah" <no-reply@kapannikah.com>',
+    from: process.env.EMAIL_FROM || '"KapanNikah" <no-reply@manzastudio.id>',
   },
 
   logLevel: process.env.LOG_LEVEL || 'info',

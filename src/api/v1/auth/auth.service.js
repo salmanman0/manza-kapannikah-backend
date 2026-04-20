@@ -1,17 +1,18 @@
 const crypto = require('crypto');
+const { OAuth2Client } = require('google-auth-library');
 const User = require('../../../models/user.model');
 const AccessToken = require('../../../models/accessToken.model');
-const OtpCode = require('../../../models/otpCode.model');
 const ApiError = require('../../../utils/ApiError');
-const otpHelper = require('../../../utils/otpHelper');
 const emailService = require('../../../utils/emailService');
 const config = require('../../../config');
 const logger = require('../../../utils/logger');
 
+const googleClient = new OAuth2Client(config.google.clientId);
+
 class AuthService {
     // ── Register ────────────────────────────────────────────────────────────────
     async register(data) {
-        const { name, email, phone, password } = data;
+        const { name, email, phone, password, kota, provinsi, layanan } = data;
 
         const existingUser = await User.findOne({ email });
         if (existingUser) {
@@ -30,6 +31,9 @@ class AuthService {
             email,
             phone,
             password,
+            kota,
+            provinsi,
+            layanan,
             emailVerificationToken: hashedVerifyToken,
             emailVerificationExpires: new Date(Date.now() + 24 * 60 * 60 * 1000), // 24 jam
         });
@@ -194,9 +198,18 @@ class AuthService {
         user.passwordResetExpires = new Date(Date.now() + 60 * 60 * 1000); // 1 jam
         await user.save({ validateBeforeSave: false });
 
-        // TODO: kirim link reset via email (saat ini hanya di-log)
-        const resetUrl = `${config.appUrl}/api/v1/auth/reset-password?token=${resetToken}`;
-        logger.info(`[RESET PASSWORD] ${email} → ${resetUrl}`);
+        // Link mengarah ke halaman web frontend untuk ubah password
+        const resetUrl = `${config.appUrl}/reset-password?token=${resetToken}`;
+        try {
+            await emailService.sendPasswordResetEmail(user.email, user.name, resetUrl);
+        } catch (emailError) {
+            // Batalkan token jika email gagal terkirim
+            user.passwordResetToken = undefined;
+            user.passwordResetExpires = undefined;
+            await user.save({ validateBeforeSave: false });
+            logger.error('[ForgotPassword] Gagal mengirim email:', emailError);
+            throw ApiError.internal('Gagal mengirim email reset password. Silakan coba lagi.');
+        }
     }
 
     // ── Reset password ──────────────────────────────────────────────────────────
@@ -236,6 +249,51 @@ class AuthService {
         return plainToken;
     }
 
+    // ── Google OAuth ────────────────────────────────────────────────────────────
+    async googleAuth(idToken, deviceInfo = {}) {
+        let payload;
+        try {
+            const ticket = await googleClient.verifyIdToken({
+                idToken,
+                audience: config.google.clientId,
+            });
+            payload = ticket.getPayload();
+        } catch {
+            throw ApiError.unauthorized('Google token tidak valid');
+        }
+
+        const { sub: googleId, email, name, email_verified } = payload;
+
+        if (!email_verified) {
+            throw ApiError.unauthorized('Akun Google belum terverifikasi');
+        }
+
+        // Find by googleId first, fall back to email
+        let user = await User.findOne({ $or: [{ googleId }, { email }] });
+
+        if (user) {
+            // Link googleId if signing in via email account
+            if (!user.googleId) {
+                user.googleId = googleId;
+                await user.save({ validateBeforeSave: false });
+            }
+        } else {
+            user = await User.create({
+                name,
+                email,
+                googleId,
+                isEmailVerified: true,
+                isActive: true,
+            });
+        }
+
+        user.lastLoginAt = new Date();
+        await user.save({ validateBeforeSave: false });
+
+        const accessToken = await this._createAccessToken(user._id, deviceInfo);
+        return { user: this._response(user), accessToken };
+    }
+
     // ── Private: safe user shape for responses ──────────────────────────────────
     _response(user) {
         return {
@@ -243,6 +301,9 @@ class AuthService {
             name: user.name,
             email: user.email,
             phone: user.phone ?? null,
+            kota: user.kota ?? null,
+            provinsi: user.provinsi ?? null,
+            layanan: user.layanan ?? 'pasangan',
             initials: user.initials,
             isEmailVerified: user.isEmailVerified,
             role: user.role,

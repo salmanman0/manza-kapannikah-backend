@@ -81,4 +81,36 @@ const sendVerificationEmail = async (toEmail, name, verifyUrl) => {
     }
 };
 
-module.exports = { sendVerificationEmail, sendEmail };
+// ── Specific email: Reset Password ───────────────────────────────────────────
+const sendPasswordResetEmail = async (toEmail, name, resetUrl) => {
+    const html = loadTemplate('resetPassword', { name, resetUrl });
+
+    if (!isEmailConfigured()) {
+        logger.info('─'.repeat(60));
+        logger.info('[EmailService] MODE DEVELOPMENT — Email tidak dikirim (API key tidak ada).');
+        logger.info(`[EmailService] Link reset password untuk ${toEmail}:`);
+        logger.info(`[EmailService] ${resetUrl}`);
+        logger.info('─'.repeat(60));
+        return;
+    }
+
+    try {
+        await sendEmail({
+            to: toEmail,
+            subject: 'Reset Password Anda — KapanNikah',
+            html,
+        });
+    } catch (err) {
+        if (process.env.NODE_ENV !== 'production') {
+            logger.warn('[EmailService] Gagal kirim via Resend, fallback ke console:');
+            logger.info('─'.repeat(60));
+            logger.info(`[EmailService] Link reset password untuk ${toEmail}:`);
+            logger.info(`[EmailService] ${resetUrl}`);
+            logger.info('─'.repeat(60));
+            return;
+        }
+        throw err;
+    }
+};
+
+module.exports = { sendVerificationEmail, sendPasswordResetEmail, sendEmail };

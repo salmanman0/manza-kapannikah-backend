@@ -29,13 +29,31 @@ const userSchema = new mongoose.Schema(
     },
     password: {
       type: String,
-      required: [true, 'Password wajib diisi'],
       minlength: [8, 'Password minimal 8 karakter'],
+      required: function () { return !this.googleId; },
       select: false,
     },
     isEmailVerified: {
       type: Boolean,
       default: false,
+    },
+    googleId: {
+      type: String,
+      index: true,
+      sparse: true,
+    },
+    kota: {
+      type: String,
+      trim: true,
+    },
+    provinsi: {
+      type: String,
+      trim: true,
+    },
+    layanan: {
+      type: String,
+      enum: ['pasangan', 'keluarga', 'tim'],
+      default: 'pasangan',
     },
     role: {
       type: String,

@@ -37,20 +37,11 @@ const logoutAllDevices = asyncHandler(async (req, res) => {
     return ApiResponse.success(res, null, 'Logout dari semua perangkat berhasil');
 });
 
-// ── POST /api/v1/auth/send-otp ────────────────────────────────────────────────
-const sendOtp = asyncHandler(async (req, res) => {
-    const result = await authService.sendOtp(req.body.email, req.body.type);
-    return ApiResponse.success(res, null, result?.message || 'OTP berhasil dikirim');
-});
-
-// ── POST /api/v1/auth/verify-otp ─────────────────────────────────────────────
-const verifyOtp = asyncHandler(async (req, res) => {
-    const result = await authService.verifyOtp(
-        req.body.email,
-        req.body.code,
-        req.body.type
-    );
-    return ApiResponse.success(res, null, result.message);
+// ── POST /api/v1/auth/google ───────────────────────────────────────────────────
+const googleAuth = asyncHandler(async (req, res) => {
+    const deviceInfo = { userAgent: req.get('user-agent'), ip: req.ip };
+    const result = await authService.googleAuth(req.body.idToken, deviceInfo);
+    return ApiResponse.success(res, result, 'Login dengan Google berhasil');
 });
 
 // ── POST /api/v1/auth/forgot-password ────────────────────────────────────────
@@ -75,8 +66,7 @@ module.exports = {
     login,
     logout,
     logoutAllDevices,
-    sendOtp,
-    verifyOtp,
+    googleAuth,
     forgotPassword,
     resetPassword,
 };

@@ -10,7 +10,7 @@ class ProfileService {
         return this._response(user);
     }
 
-    // ── Update profile (name, email, phone) ─────────────────────────────────────
+    // ── Update profile (name, email, phone, kota, provinsi) ───────────────────
     async updateMe(userId, data) {
         // If email is being changed, check it's not taken by another user
         if (data.email) {
@@ -71,6 +71,9 @@ class ProfileService {
             name: user.name,
             email: user.email,
             phone: user.phone ?? null,
+            kota: user.kota ?? null,
+            provinsi: user.provinsi ?? null,
+            layanan: user.layanan ?? 'pasangan',
             initials: user.initials,
             isEmailVerified: user.isEmailVerified,
             role: user.role,

@@ -40,6 +40,11 @@ const register = Joi.object({
             'any.only': 'Konfirmasi password tidak cocok',
             'any.required': 'Konfirmasi password wajib diisi',
         }),
+    kota: Joi.string().max(100).trim().optional(),
+    provinsi: Joi.string().max(100).trim().optional(),
+    layanan: Joi.string().valid('pasangan', 'keluarga', 'tim').optional().messages({
+        'any.only': 'Layanan hanya boleh: pasangan, keluarga, atau tim',
+    }),
 });
 
 // ── Login ─────────────────────────────────────────────────────────────────────
@@ -53,35 +58,11 @@ const login = Joi.object({
     }),
 });
 
-// ── Send OTP (password_reset only) ───────────────────────────────────────────
-const sendOtp = Joi.object({
-    email: Joi.string().email().lowercase().required().messages({
-        'string.email': 'Format email tidak valid',
-        'any.required': 'Email wajib diisi',
+// ── Google OAuth ──────────────────────────────────────────────────────────────
+const googleAuth = Joi.object({
+    idToken: Joi.string().required().messages({
+        'any.required': 'Google ID token wajib diisi',
     }),
-    type: Joi.string()
-        .valid('password_reset')
-        .required()
-        .messages({
-            'any.only': 'Type hanya boleh password_reset',
-            'any.required': 'Type wajib diisi',
-        }),
-});
-
-// ── Verify OTP ────────────────────────────────────────────────────────────────
-const verifyOtp = Joi.object({
-    email: Joi.string().email().lowercase().required(),
-    code: Joi.string()
-        .length(6)
-        .pattern(/^\d{6}$/)
-        .required()
-        .messages({
-            'string.length': 'OTP harus 6 digit',
-            'string.pattern.base': 'OTP hanya boleh berisi angka',
-        }),
-    type: Joi.string()
-        .valid('password_reset')
-        .required(),
 });
 
 // ── Forgot password ───────────────────────────────────────────────────────────
@@ -109,8 +90,7 @@ const resetPassword = Joi.object({
 module.exports = {
     register,
     login,
-    sendOtp,
-    verifyOtp,
+    googleAuth,
     forgotPassword,
     resetPassword,
 };

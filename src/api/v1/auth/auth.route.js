@@ -4,7 +4,7 @@ const router = express.Router();
 const authController = require('./auth.controller');
 const validate = require('../../../middlewares/validate');
 const authenticate = require('../../../middlewares/authenticate');
-const { authRateLimiter, otpRateLimiter } = require('../../../middlewares/rateLimiter');
+const { authRateLimiter } = require('../../../middlewares/rateLimiter');
 const authValidation = require('./auth.validation');
 
 // ── Public routes ─────────────────────────────────────────────────────────────
@@ -25,24 +25,18 @@ router.post(
     authController.login
 );
 
-// ── OTP routes (password reset only) ─────────────────────────────────────────
+// ── Google OAuth ──────────────────────────────────────────────────────────────
 router.post(
-    '/send-otp',
-    otpRateLimiter,
-    validate(authValidation.sendOtp),
-    authController.sendOtp
-);
-
-router.post(
-    '/verify-otp',
-    validate(authValidation.verifyOtp),
-    authController.verifyOtp
+    '/google',
+    authRateLimiter,
+    validate(authValidation.googleAuth),
+    authController.googleAuth
 );
 
 // ── Password reset routes ─────────────────────────────────────────────────────
 router.post(
     '/forgot-password',
-    otpRateLimiter,
+    authRateLimiter,
     validate(authValidation.forgotPassword),
     authController.forgotPassword
 );

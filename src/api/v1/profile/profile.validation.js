@@ -1,6 +1,6 @@
 const Joi = require('joi');
 
-// ── Update profile (name, email, phone) ───────────────────────────────────────
+// ── Update profile (name, email, phone, kota, provinsi) ─────────────────────
 const updateProfile = Joi.object({
     name: Joi.string().min(2).max(100).trim().optional().messages({
         'string.min': 'Nama minimal 2 karakter',
@@ -14,6 +14,8 @@ const updateProfile = Joi.object({
         .allow('', null)
         .optional()
         .messages({'string.pattern.base': 'Format nomor HP tidak valid (contoh: 08xx, +628xx)'}),
+    kota: Joi.string().max(100).trim().allow('', null).optional(),
+    provinsi: Joi.string().max(100).trim().allow('', null).optional(),
 }).min(1).messages({'object.min': 'Minimal satu field harus diisi'});
 
 // ── Change password ───────────────────────────────────────────────────────────

@@ -21,10 +21,10 @@
 ###############################################################################
 # 1. REGISTER
 ###############################################################################
-# Mendaftarkan akun baru.
-# Setelah register: email verifikasi dikirim ke alamat email yang didaftarkan.
+# Mendaftarkan akun baru dengan email dan password.
+# Setelah register: email verifikasi dikirim ke email yang didaftarkan.
 # User BELUM bisa login sampai email diverifikasi.
-# Response TIDAK mengandung token — user harus verifikasi email terlebih dahulu.
+# Response TIDAK mengandung token.
 #
 # Method  : POST
 # URL     : /auth/register
@@ -41,7 +41,10 @@ Content-Type: {{ct}}
   "email": "budi@example.com",
   "phone": "08123456789",
   "password": "Rahasia@123",
-  "confirmPassword": "Rahasia@123"
+  "confirmPassword": "Rahasia@123",
+  "kota": "Jakarta",
+  "provinsi": "DKI Jakarta",
+  "layanan": "pasangan"
 }
 
 # ✅ 201 Created
@@ -58,8 +61,7 @@ Content-Type: {{ct}}
 #   "success": false,
 #   "message": "Validasi gagal",
 #   "errors": [
-#     { "field": "password", "message": "Password minimal 8 karakter, mengandung huruf besar, huruf kecil, angka, dan karakter spesial (@$!%*?&)" },
-#     { "field": "confirmPassword", "message": "Konfirmasi password tidak cocok" }
+#     { "field": "layanan", "message": "Layanan hanya boleh: pasangan, keluarga, atau tim" }
 #   ]
 # }
 #
@@ -69,14 +71,16 @@ Content-Type: {{ct}}
 #   phone           string  optional  Format Indonesia: 08xx / +628xx
 #   password        string  required  Min 8 karakter, harus ada: A-Z, a-z, 0-9, simbol
 #   confirmPassword string  required  Harus sama dengan password
+#   kota            string  optional  Nama kota (maks 100 karakter)
+#   provinsi        string  optional  Nama provinsi (maks 100 karakter)
+#   layanan         string  optional  "pasangan" | "keluarga" | "tim"  (default: "pasangan")
 
 
 ###############################################################################
 # 2. VERIFY EMAIL
 ###############################################################################
 # Verifikasi email dari link yang dikirim ke email setelah register.
-# Link berlaku 24 jam.
-# Setelah berhasil, akun bisa digunakan untuk login.
+# Link berlaku 24 jam. Setelah berhasil, akun bisa digunakan untuk login.
 #
 # Method  : GET
 # URL     : /auth/verify-email?token=<token>
@@ -96,21 +100,21 @@ GET {{baseUrl}}/auth/verify-email?token=abcdef1234567890abcdef1234567890abcdef12
 # Query Params:
 #   token  string  required  Token yang ada di link email (64 karakter hex)
 #
-# NOTE (development): Jika email belum dikonfigurasi, link verifikasi akan
-# muncul di terminal/log server. Copy dan akses URL tersebut di browser.
+# NOTE (development): Jika RESEND_API_KEY belum dikonfigurasi, link verifikasi
+# akan muncul di terminal/log server. Copy dan akses URL tersebut di browser.
 
 
 ###############################################################################
 # 3. LOGIN
 ###############################################################################
 # Login dengan email dan password.
-# Mengembalikan satu access token yang berlaku permanen hingga logout.
+# Mengembalikan access token yang berlaku hingga logout.
 # Gagal jika email belum diverifikasi.
 #
 # Method  : POST
 # URL     : /auth/login
 # Auth    : Tidak diperlukan
-# Rate    : Max 5 request per 15 menit per IP (only failed requests count)
+# Rate    : Max 5 request per 15 menit per IP
 # -----------------------------------------------------------------------------
 
 ### Login - Berhasil
@@ -132,6 +136,9 @@ Content-Type: {{ct}}
 #       "name": "Budi Santoso",
 #       "email": "budi@example.com",
 #       "phone": "08123456789",
+#       "kota": "Jakarta",
+#       "provinsi": "DKI Jakarta",
+#       "layanan": "pasangan",
 #       "initials": "BS",
 #       "isEmailVerified": true,
 #       "role": "user"
@@ -152,11 +159,69 @@ Content-Type: {{ct}}
 
 
 ###############################################################################
-# 4. LOGOUT
+# 4. LOGIN DENGAN GOOGLE
+###############################################################################
+# Login atau register menggunakan akun Google.
+# Mobile app mendapatkan idToken dari Google Sign-In SDK,
+# lalu mengirimkannya ke endpoint ini.
+#
+# Flow:
+#   1. Mobile → Google Sign-In SDK → dapat idToken
+#   2. Mobile → POST /auth/google { idToken }
+#   3. Backend verifikasi token ke Google
+#   4. Jika email belum terdaftar → akun dibuat otomatis (email langsung terverifikasi)
+#   5. Jika sudah terdaftar → login langsung
+#
+# Method  : POST
+# URL     : /auth/google
+# Auth    : Tidak diperlukan
+# Rate    : Max 5 request per 15 menit per IP
+# -----------------------------------------------------------------------------
+
+### Login / Register dengan Google
+POST {{baseUrl}}/auth/google
+Content-Type: {{ct}}
+
+{
+  "idToken": "PASTE_GOOGLE_ID_TOKEN_DARI_SDK"
+}
+
+# ✅ 200 OK
+# {
+#   "success": true,
+#   "message": "Login dengan Google berhasil",
+#   "data": {
+#     "user": {
+#       "id": "6640a1b2c3d4e5f6a7b8c9d0",
+#       "name": "Budi Santoso",
+#       "email": "budi@gmail.com",
+#       "phone": null,
+#       "kota": null,
+#       "provinsi": null,
+#       "layanan": "pasangan",
+#       "initials": "BS",
+#       "isEmailVerified": true,
+#       "role": "user"
+#     },
+#     "accessToken": "a3f9b1c2d4e5f6..."
+#   }
+# }
+#
+# ❌ 401 Unauthorized — token Google tidak valid
+# { "success": false, "message": "Google token tidak valid" }
+#
+# ❌ 401 Unauthorized — akun Google belum verifikasi email
+# { "success": false, "message": "Akun Google belum terverifikasi" }
+#
+# Body Fields:
+#   idToken  string  required  ID token dari Google Sign-In SDK
+
+
+###############################################################################
+# 5. LOGOUT
 ###############################################################################
 # Logout dari device saat ini.
 # Access token yang digunakan langsung dihapus dari database.
-# Token tidak bisa lagi digunakan setelah ini.
 #
 # Method  : POST
 # URL     : /auth/logout
@@ -175,11 +240,10 @@ Authorization: Bearer {{token}}
 
 
 ###############################################################################
-# 5. LOGOUT SEMUA PERANGKAT
+# 6. LOGOUT SEMUA PERANGKAT
 ###############################################################################
-# Setelah ini semua sesi aktif di semua perangkat akan dihapus.
+# Menghapus semua sesi aktif di semua perangkat.
 # Berguna jika akun dicurigai dibobol atau setelah ganti password.
-# Pengguna harus login ulang di semua perangkat.
 #
 # Method  : POST
 # URL     : /auth/logout-all
@@ -198,20 +262,26 @@ Authorization: Bearer {{token}}
 
 
 ###############################################################################
-# 6. LUPA PASSWORD
+# 7. LUPA PASSWORD
 ###############################################################################
-# Meminta link reset password dikirim ke email.
+# Flow:
+#   1. User klik "Lupa Password" di aplikasi
+#   2. User masukkan email → POST /auth/forgot-password
+#   3. Email dikirim berisi link → https://manzastudio.id/reset-password?token=xxx
+#   4. User klik link → dibuka di browser (halaman web ubah password)
+#   5. User input password baru → POST /auth/reset-password
+#   6. Password berhasil diubah, semua sesi dihapus
+#
 # Response selalu sama terlepas apakah email terdaftar atau tidak
-# (untuk mencegah user enumeration).
-# Link reset berlaku 1 jam.
+# (mencegah user enumeration). Link berlaku 1 jam.
 #
 # Method  : POST
 # URL     : /auth/forgot-password
 # Auth    : Tidak diperlukan
-# Rate    : Max 3 request per 10 menit per IP
+# Rate    : Max 5 request per 15 menit per IP
 # -----------------------------------------------------------------------------
 
-### Lupa Password
+### Lupa Password - Kirim Email
 POST {{baseUrl}}/auth/forgot-password
 Content-Type: {{ct}}
 
@@ -222,14 +292,18 @@ Content-Type: {{ct}}
 # ✅ 200 OK (selalu sama meski email tidak terdaftar)
 # { "success": true, "message": "Jika email terdaftar, instruksi reset password akan dikirim" }
 #
+# NOTE (development): Jika RESEND_API_KEY belum dikonfigurasi, link reset
+# akan muncul di terminal/log server.
+#
 # Body Fields:
 #   email  string  required
 
 
 ###############################################################################
-# 7. RESET PASSWORD
+# 8. RESET PASSWORD
 ###############################################################################
 # Mengubah password menggunakan token dari email lupa password.
+# Token didapat dari query string link di email: ?token=xxx
 # Setelah berhasil, SEMUA sesi aktif dihapus — pengguna harus login ulang.
 #
 # Method  : POST
@@ -242,7 +316,7 @@ POST {{baseUrl}}/auth/reset-password
 Content-Type: {{ct}}
 
 {
-  "token": "PASTE_RESET_TOKEN_DARI_EMAIL",
+  "token": "PASTE_TOKEN_DARI_QUERY_STRING_LINK_EMAIL",
   "password": "PasswordBaru@456",
   "confirmPassword": "PasswordBaru@456"
 }
@@ -250,89 +324,27 @@ Content-Type: {{ct}}
 # ✅ 200 OK
 # { "success": true, "message": "Password berhasil direset. Silakan login kembali." }
 #
-# ❌ 400 Bad Request — token tidak valid atau expired
+# ❌ 400 Bad Request — token tidak valid atau sudah expired (> 1 jam)
 # { "success": false, "message": "Token reset tidak valid atau sudah kedaluwarsa" }
 #
+# ❌ 422 Unprocessable — validasi gagal
+# {
+#   "success": false,
+#   "message": "Validasi gagal",
+#   "errors": [
+#     { "field": "confirmPassword", "message": "Konfirmasi password tidak cocok" }
+#   ]
+# }
+#
 # Body Fields:
-#   token            string  required  Token dari link email (64 karakter hex)
-#   password         string  required  Password baru (aturan sama seperti register)
+#   token            string  required  Token dari query string link email (64 karakter hex)
+#   password         string  required  Password baru (min 8 karakter, ada A-Z, a-z, 0-9, simbol)
 #   confirmPassword  string  required  Harus sama dengan password
-
-
-###############################################################################
-# 8. SEND OTP (Reset Password)
-###############################################################################
-# Mengirim kode OTP 6 digit ke email untuk keperluan reset password.
-# OTP berlaku 5 menit. Maksimal 3x salah sebelum perlu minta ulang.
-# Alternatif dari flow forgot-password berbasis link.
-#
-# Method  : POST
-# URL     : /auth/send-otp
-# Auth    : Tidak diperlukan
-# Rate    : Max 3 request per 10 menit per IP
-# -----------------------------------------------------------------------------
-
-### Send OTP
-POST {{baseUrl}}/auth/send-otp
-Content-Type: {{ct}}
-
-{
-  "email": "budi@example.com",
-  "type": "password_reset"
-}
-
-# ✅ 200 OK
-# { "success": true, "message": "OTP telah dikirim ke budi@example.com" }
-#
-# ❌ 429 Too Many Requests
-# { "success": false, "message": "Terlalu banyak permintaan OTP. Coba lagi dalam 10 menit." }
-#
-# Body Fields:
-#   email  string  required
-#   type   string  required  Hanya "password_reset"
-
-
-###############################################################################
-# 9. VERIFY OTP
-###############################################################################
-# Memvalidasi kode OTP yang diterima via email.
-#
-# Method  : POST
-# URL     : /auth/verify-otp
-# Auth    : Tidak diperlukan
-# -----------------------------------------------------------------------------
-
-### Verify OTP - Berhasil
-POST {{baseUrl}}/auth/verify-otp
-Content-Type: {{ct}}
-
-{
-  "email": "budi@example.com",
-  "code": "482913",
-  "type": "password_reset"
-}
-
-# ✅ 200 OK
-# { "success": true, "message": "OTP berhasil diverifikasi" }
-#
-# ❌ 400 Bad Request — kode salah
-# { "success": false, "message": "OTP salah. Sisa percobaan: 2" }
-#
-# ❌ 429 Too Many Requests — sudah 3x salah
-# { "success": false, "message": "Terlalu banyak percobaan salah. Silakan minta OTP baru." }
-#
-# Body Fields:
-#   email  string  required
-#   code   string  required  6 digit angka
-#   type   string  required  Hanya "password_reset"
 
 
 ###############################################################################
 # HEALTH CHECK
 ###############################################################################
-# Cek apakah server berjalan. Tidak memerlukan autentikasi.
-# Berguna untuk monitoring dan debugging awal.
-# -----------------------------------------------------------------------------
 
 ### Health Check
 GET http://localhost:3000/api/health
@@ -341,6 +353,6 @@ GET http://localhost:3000/api/health
 # {
 #   "success": true,
 #   "message": "Server is running",
-#   "timestamp": "2026-04-13T07:22:56.000Z",
+#   "timestamp": "2026-04-20T07:22:56.000Z",
 #   "version": "1.0.0"
 # }
