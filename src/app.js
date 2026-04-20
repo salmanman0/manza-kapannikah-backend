@@ -1,3 +1,4 @@
+const path = require('path');
 const express = require('express');
 const helmet = require('helmet');
 const cors = require('cors');
@@ -39,6 +40,9 @@ if (config.env !== 'test') {
     })
   );
 }
+
+// ── Static assets (logo images for web pages) ───────────────────────────────
+app.use('/assets', express.static(path.join(__dirname, 'templates/assets')));
 
 // ── Global rate limiter ───────────────────────────────────────────────────────
 app.use('/api', globalRateLimiter);
